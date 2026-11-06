@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secretshield"
+version = "0.1.0"
+description = "Shared secret-scanning engine for local Git protection and an online dashboard."
+requires-python = ">=3.10"
+dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+secretshield = "secretshield.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["secretshield*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
