@@ -7,3 +7,5 @@ __pycache__/
 !.env.example
 .coverage
 htmlcov/
+*.egg-info/
+*.bak
