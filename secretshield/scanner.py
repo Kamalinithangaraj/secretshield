@@ -140,7 +140,15 @@ def scan_text(text: str, file_name: str = "inline.txt") -> list[Finding]:
 
 def _is_sensitive_file(file_path: Path) -> bool:
     name = file_path.name.lower()
-    return name in SENSITIVE_FILENAMES or (name.startswith(".env.") and name != ".env.example")
+    suffix = file_path.suffix.lower()
+
+    sensitive_extensions = {".pem", ".p12", ".pfx"}
+
+    return (
+        name in SENSITIVE_FILENAMES
+        or (name.startswith(".env.") and name != ".env.example")
+        or suffix in sensitive_extensions
+    )
 
 
 def scan_path(path: str | Path) -> list[Finding]:
@@ -157,16 +165,42 @@ def scan_path(path: str | Path) -> list[Finding]:
     for file_path in paths:
         if any(part in IGNORED_PARTS for part in file_path.parts):
             continue
-        relative_name = str(file_path.relative_to(target)) if target.is_dir() else file_path.name
+
+        relative_name = (
+            str(file_path.relative_to(target))
+            if target.is_dir()
+            else file_path.name
+        )
 
         if _is_sensitive_file(file_path):
-            findings.append(_finding(relative_name, 1, "sensitive_file", "high", "[content hidden]",
-                "Sensitive file detected. Treat every credential inside it as exposed; use a fake-value example file instead."))
+            findings.append(
+                _finding(
+                    relative_name,
+                    1,
+                    "sensitive_file",
+                    "high",
+                    "[content hidden]",
+                    "Sensitive file detected. Treat every credential inside it as exposed; use a fake-value example file instead.",
+                )
+            )
 
         try:
             content = file_path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, PermissionError, OSError):
+        except UnicodeDecodeError:
             continue
+        except (PermissionError, OSError):
+            findings.append(
+                Finding(
+                    file=relative_name,
+                    line=0,
+                    secret_type="scan_error",
+                    risk="medium",
+                    masked_value="[content hidden]",
+                    message="Could not read this file. The scan may be incomplete.",
+                )
+            )
+            continue
+
         findings.extend(scan_text(content, relative_name))
 
     return findings

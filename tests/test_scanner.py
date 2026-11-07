@@ -1,5 +1,6 @@
 from secretshield.scanner import scan_text, scan_path
 from secretshield.remediation import remediation_for
+from pathlib import Path
 
 
 def test_detects_fake_github_token_without_exposing_full_value():
@@ -199,3 +200,73 @@ def test_detects_realistic_generic_password():
         for f in findings
     )
     assert fake not in str(findings)
+
+def test_empty_text_returns_no_findings():
+    assert scan_text("") == []
+
+
+def test_empty_file_returns_no_findings(tmp_path):
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("", encoding="utf-8")
+
+    assert scan_path(empty_file) == []
+
+
+def test_binary_file_is_skipped_safely(tmp_path):
+    binary_file = tmp_path / "sample.bin"
+    binary_file.write_bytes(b"\xff\xfe\x00\x80\xff")
+
+    assert scan_path(binary_file) == []
+
+def test_duplicate_secret_on_same_line_is_reported_once():
+    fake = "CorrectHorseBattery123!"
+    text = f'password = "{fake}"; password = "{fake}"'
+
+    findings = scan_text(text, "app.py")
+
+    password_findings = [
+        finding for finding in findings
+        if finding.secret_type == "generic_password_assignment"
+    ]
+
+    assert len(password_findings) == 1
+def test_scans_unicode_text_and_windows_line_endings():
+    fake = "CorrectHorseBattery123!"
+    text = f"message = 'こんにちは 🔐'\r\npassword = '{fake}'\r\n"
+
+    findings = scan_text(text, "app.py")
+
+    assert len(findings) == 1
+    assert findings[0].line == 2
+    assert findings[0].secret_type == "generic_password_assignment"
+
+def test_detects_pem_file_by_filename(tmp_path):
+    pem_file = tmp_path / "server.pem"
+    pem_file.write_text("dummy certificate content", encoding="utf-8")
+
+    findings = scan_path(pem_file)
+
+    assert findings
+    assert findings[0].secret_type == "sensitive_file"
+    assert findings[0].risk == "high"
+
+def test_unreadable_file_produces_scan_error(tmp_path, monkeypatch):
+    target = tmp_path / "restricted.txt"
+    target.write_text("safe content", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def blocked_read_text(self, *args, **kwargs):
+        if self == target:
+            raise PermissionError("Access denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", blocked_read_text)
+
+    findings = scan_path(target)
+
+    assert len(findings) == 1
+    assert findings[0].secret_type == "scan_error"
+    assert findings[0].risk == "medium"
+    assert "incomplete" in findings[0].message.lower()
+
