@@ -21,6 +21,7 @@ PRIVATE_KEY_MARKERS = (
     "-----BEGIN " + "EC PRIVATE KEY" + "-----",
     "-----BEGIN " + "OPENSSH PRIVATE KEY" + "-----",
     "-----BEGIN " + "DSA PRIVATE KEY" + "-----",
+    "-----BEGIN " + "ENCRYPTED PRIVATE KEY" + "-----",
 )
 
 # Rules are intentionally readable and conservative. Gitleaks will be added as
@@ -34,6 +35,8 @@ RULES: list[tuple[str, re.Pattern[str], str]] = [
     ("database_url", re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?)://[^\s:/]+:[^\s@]+@[^\s]+"), "high"),
     ("generic_password_assignment", re.compile(r'''(?i)\b(password|passwd|pwd)\b\s*[:=]\s*["']?([^\s"'#]{8,})'''), "high"),
     ("generic_api_key_assignment", re.compile(r'''(?i)\b(api[_-]?key|access[_-]?token|secret[_-]?key)\b\s*[:=]\s*["']?([A-Za-z0-9_\-/.+=]{12,})'''), "medium"),
+    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "medium"),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"), "high"),
 ]
 
 @dataclass(frozen=True)

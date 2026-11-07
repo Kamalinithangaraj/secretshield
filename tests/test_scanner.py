@@ -128,3 +128,57 @@ def test_detects_stripe_secret_key_without_exposing_full_value():
     assert any(f.secret_type == "stripe_secret_key" for f in findings)
     assert fake not in str(findings)
 
+def test_detects_google_api_key_without_exposing_full_value():
+    fake = "AI" + "za" + "A" * 35
+    findings = scan_text(f'GOOGLE_API_KEY = "{fake}"', "config.py")
+
+    assert any(f.secret_type == "google_api_key" for f in findings)
+    assert fake not in str(findings)
+
+
+def test_detects_jwt_without_exposing_full_value():
+    fake = (
+        "eyJ" + "A" * 20 + "."
+        + "eyJ" + "B" * 20 + "."
+        + "C" * 30
+    )
+    findings = scan_text(f'jwt = "{fake}"', "auth.py")
+
+    assert any(f.secret_type == "jwt" for f in findings)
+    assert fake not in str(findings)
+
+
+def test_detects_encrypted_private_key_header():
+    key_header = (
+        "-----BEGIN "
+        + "ENCRYPTED PRIVATE KEY"
+        + "-----"
+    )
+    findings = scan_text(key_header, "server.pem")
+
+    assert any(f.secret_type == "private_key" for f in findings)
+    assert all(f.masked_value == "[content hidden]" for f in findings)
+
+
+def test_google_api_key_has_specific_remediation():
+    guidance = remediation_for("google_api_key")
+    steps = str(guidance["type_specific_steps"]).lower()
+
+    assert "google cloud console" in steps
+    assert "restrict" in steps
+
+
+def test_jwt_has_specific_remediation():
+    guidance = remediation_for("jwt")
+    steps = str(guidance["type_specific_steps"]).lower()
+
+    assert "signing key" in steps
+    assert "tokens" in steps
+
+
+def test_private_key_guidance_covers_encrypted_keys():
+    guidance = remediation_for("private_key")
+    steps = str(guidance["type_specific_steps"]).lower()
+
+    assert "even if it is encrypted" in steps
+    assert "new key pair" in steps

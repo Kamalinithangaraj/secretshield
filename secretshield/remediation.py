@@ -30,6 +30,19 @@ TYPE_STEPS = {
         "Generate a replacement using only the required scopes.",
         "Review app activity and unexpected messages or API usage.",
     ],
+    "google_api_key": [
+        "Restrict the exposed Google API key to only the required APIs and applications.",
+        "Rotate or replace the exposed key using Google Cloud Console.",
+        "Review Google Cloud API usage, billing and audit logs for suspicious activity.",
+        "Avoid embedding unrestricted API keys in public client-side code.",
+    ],
+    "jwt": [
+        "Identify which application issued and validates the exposed JWT.",
+        "If the signing key is compromised, rotate it and update all validating services.",
+        "Invalidate affected tokens or sessions where supported.",
+        "Review token expiry, issuer, audience and signing algorithm configuration.",
+        "Review authentication logs for suspicious token usage.",
+    ],
     "aws_access_key": [
         "Deactivate the exposed access key in AWS IAM.",
         "Create a replacement for the required IAM identity with least privilege.",
@@ -57,9 +70,11 @@ TYPE_STEPS = {
         "Confirm the real file is excluded by .gitignore.",
     ],
     "private_key": [
-        "Revoke or remove trust in the exposed public key or certificate everywhere it is used.",
-        "Generate a new key pair using an approved secure method.",
+        "Treat the exposed private key as compromised, even if it is encrypted.",
+        "Generate a completely new key pair using an approved secure method.",
+        "Remove trust in the old public key or certificate wherever it is used.",
         "Replace the old key across dependent systems and verify access.",
+        "Never share or commit the private key or its passphrase.",
     ],
 }
 
