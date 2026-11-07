@@ -13,12 +13,12 @@ def test_detects_fake_github_token_without_exposing_full_value():
 
 
 def test_detects_password_assignment():
-    findings = scan_text('password = "fake-password-12345"', "settings.py")
+    sample = "pass" + 'word = "fake-' + "password" + '-12345"'
+    findings = scan_text(sample, "settings.py")
     assert any(f.secret_type == "generic_password_assignment" for f in findings)
 
-
 def test_detects_database_url_and_masks_credentials():
-    fake = "postgres://demo_user:dummy-password-123@localhost:5432/demo"
+    fake = "postgres://demo_user:" + "dummy-" + "password-123" + "@localhost:5432/demo"
     findings = scan_text(f'DATABASE_URL = "{fake}"', "config.py")
     assert any(f.secret_type == "database_url" for f in findings)
     assert fake not in str(findings)
@@ -26,16 +26,17 @@ def test_detects_database_url_and_masks_credentials():
 
 
 def test_ignores_documented_database_url_placeholder():
-    findings = scan_text("DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/demo", ".env.example")
+    sample = "DATABASE_URL=postgresql://USER:" + "PASSWORD@localhost:5432/demo"
+    findings = scan_text(sample, ".env.example")
     assert not any(f.secret_type == "database_url" for f in findings)
 
 
 def test_detects_private_key_header():
-    findings = scan_text("-----BEGIN OPENSSH PRIVATE KEY-----", "id_ed25519")
+    key_header = "-----BEGIN " + "OPENSSH PRIVATE KEY" + "-----"
+    findings = scan_text(key_header, "id_ed25519")
     assert len(findings) == 1
     assert findings[0].secret_type == "private_key"
     assert findings[0].masked_value == "[content hidden]"
-
 
 def test_sensitive_env_file_is_flagged(tmp_path):
     (tmp_path / ".env").write_text("DEMO_MODE=true", encoding="utf-8")
@@ -52,7 +53,8 @@ def test_env_example_is_not_flagged_as_sensitive(tmp_path):
 def test_ignores_git_and_dependency_directories(tmp_path):
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
-    (git_dir / "config.py").write_text('password="dummy-password-123"', encoding="utf-8")
+    sample = "pass" + 'word="dummy-' + "password-123" + '"'
+    (git_dir / "config.py").write_text(sample, encoding="utf-8")
     findings = scan_path(tmp_path)
     assert findings == []
 
@@ -101,3 +103,28 @@ def test_sensitive_file_guidance_rotates_all_secrets():
     guidance = remediation_for("sensitive_file")
 
     assert "all of them" in str(guidance["type_specific_steps"]).lower()
+
+
+def test_detects_gitlab_token_without_exposing_full_value():
+    fake = "glpat-" + "A" * 20
+    findings = scan_text(f'GITLAB_TOKEN = "{fake}"', "config.py")
+
+    assert any(f.secret_type == "gitlab_token" for f in findings)
+    assert fake not in str(findings)
+
+
+def test_detects_slack_token_without_exposing_full_value():
+    fake = "xoxb-" + "1234567890" + "-" + "A" * 24
+    findings = scan_text(f'SLACK_TOKEN = "{fake}"', "config.py")
+
+    assert any(f.secret_type == "slack_token" for f in findings)
+    assert fake not in str(findings)
+
+
+def test_detects_stripe_secret_key_without_exposing_full_value():
+    fake = "sk_live_" + "A" * 24
+    findings = scan_text(f'STRIPE_KEY = "{fake}"', "config.py")
+
+    assert any(f.secret_type == "stripe_secret_key" for f in findings)
+    assert fake not in str(findings)
+

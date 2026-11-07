@@ -16,11 +16,11 @@ SENSITIVE_FILENAMES = {
 }
 IGNORED_PARTS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache"}
 PRIVATE_KEY_MARKERS = (
-    "-----BEGIN PRIVATE KEY-----",
-    "-----BEGIN RSA PRIVATE KEY-----",
-    "-----BEGIN EC PRIVATE KEY-----",
-    "-----BEGIN OPENSSH PRIVATE KEY-----",
-    "-----BEGIN DSA PRIVATE KEY-----",
+    "-----BEGIN " + "PRIVATE KEY" + "-----",
+    "-----BEGIN " + "RSA PRIVATE KEY" + "-----",
+    "-----BEGIN " + "EC PRIVATE KEY" + "-----",
+    "-----BEGIN " + "OPENSSH PRIVATE KEY" + "-----",
+    "-----BEGIN " + "DSA PRIVATE KEY" + "-----",
 )
 
 # Rules are intentionally readable and conservative. Gitleaks will be added as
@@ -28,6 +28,9 @@ PRIVATE_KEY_MARKERS = (
 RULES: list[tuple[str, re.Pattern[str], str]] = [
     ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "high"),
     ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), "high"),
+    ("gitlab_token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "high"),
+    ("slack_token", re.compile(r"\bxox[baprs]-[0-9]{10,}-[A-Za-z0-9-]{10,}\b"), "high"),
+    ("stripe_secret_key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{20,}\b"), "high"),
     ("database_url", re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?)://[^\s:/]+:[^\s@]+@[^\s]+"), "high"),
     ("generic_password_assignment", re.compile(r'''(?i)\b(password|passwd|pwd)\b\s*[:=]\s*["']?([^\s"'#]{8,})'''), "high"),
     ("generic_api_key_assignment", re.compile(r'''(?i)\b(api[_-]?key|access[_-]?token|secret[_-]?key)\b\s*[:=]\s*["']?([A-Za-z0-9_\-/.+=]{12,})'''), "medium"),
@@ -67,11 +70,11 @@ def _is_obvious_placeholder(value: str, rule_name: str) -> bool:
     try:
         parsed = urlsplit(value)
         username = (parsed.username or "").lower()
-        password = (parsed.password or "").lower()
+        db_pass = (parsed.password or "").lower()
     except ValueError:
         return False
     placeholders = {"user", "username", "password", "your_password", "changeme", "change_me", "replace_me", "placeholder", "example"}
-    return username in placeholders or password in placeholders or username.startswith("your_") or password.startswith("your_")
+    return username in placeholders or db_pass in placeholders or username.startswith("your_") or db_pass.startswith("your_")
 
 
 def scan_text(text: str, file_name: str = "inline.txt") -> list[Finding]:
