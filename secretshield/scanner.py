@@ -68,17 +68,40 @@ def _finding(file_name: str, line: int, kind: str, risk: str, value: str, messag
 
 def _is_obvious_placeholder(value: str, rule_name: str) -> bool:
     """Avoid flagging clearly documented template credentials as live secrets."""
-    if rule_name != "database_url":
-        return False
-    try:
-        parsed = urlsplit(value)
-        username = (parsed.username or "").lower()
-        db_pass = (parsed.password or "").lower()
-    except ValueError:
-        return False
-    placeholders = {"user", "username", "password", "your_password", "changeme", "change_me", "replace_me", "placeholder", "example"}
-    return username in placeholders or db_pass in placeholders or username.startswith("your_") or db_pass.startswith("your_")
+    if rule_name == "database_url":
+        try:
+            parsed = urlsplit(value)
+            username = (parsed.username or "").lower()
+            db_pass = (parsed.password or "").lower()
+        except ValueError:
+            return False
 
+        placeholders = {
+            "user", "username", "password", "your_password",
+            "changeme", "change_me", "replace_me",
+            "placeholder", "example",
+        }
+        return (
+            username in placeholders
+            or db_pass in placeholders
+            or username.startswith("your_")
+            or db_pass.startswith("your_")
+        )
+
+    normalized = value.strip().strip("\"'").lower()
+
+    placeholders = {
+        "changeme", "change_me", "replace_me",
+        "placeholder", "example", "your_password",
+        "your_api_key", "your_token",
+    }
+
+    return (
+        normalized in placeholders
+        or normalized.startswith("your_")
+        or normalized.startswith("replace_me")
+        or normalized.startswith("placeholder")
+    )
 
 def scan_text(text: str, file_name: str = "inline.txt") -> list[Finding]:
     """Scan text content and return metadata-only findings."""
@@ -100,7 +123,10 @@ def scan_text(text: str, file_name: str = "inline.txt") -> list[Finding]:
                 # Assignment rules capture the actual value in group 2. Other
                 # rules capture the whole token/URL, which is masked immediately.
                 secret = match.group(2) if match.lastindex and match.lastindex >= 2 else match.group(0)
-                if _is_obvious_placeholder(match.group(0), rule_name):
+                placeholder_value = (
+    match.group(0) if rule_name == "database_url" else secret
+                )
+                if _is_obvious_placeholder(placeholder_value, rule_name):
                     continue
                 key = (line_number, rule_name, _mask(secret))
                 if key in seen:

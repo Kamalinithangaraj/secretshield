@@ -182,3 +182,20 @@ def test_private_key_guidance_covers_encrypted_keys():
 
     assert "even if it is encrypted" in steps
     assert "new key pair" in steps
+
+def test_ignores_generic_password_placeholder():
+    findings = scan_text('password = "changeme"')
+    assert not any(
+        f.secret_type == "generic_password_assignment"
+        for f in findings
+    )
+
+
+def test_detects_realistic_generic_password():
+    fake = "Secret" + "Value123456"
+    findings = scan_text(f'password = "{fake}"')
+    assert any(
+        f.secret_type == "generic_password_assignment"
+        for f in findings
+    )
+    assert fake not in str(findings)
