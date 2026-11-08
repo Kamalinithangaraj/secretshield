@@ -1,14 +1,14 @@
 
 import argparse
 
-from .scanner import scan_path
+from .combined_scanner import scan_project
 from .remediation import remediation_for
 
 
 def main():
     parser = argparse.ArgumentParser(
         prog="secretshield",
-        description="Scan files for potential secrets."
+        description="Scan files and directories for potential secrets."
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -27,9 +27,19 @@ def main():
     args = parser.parse_args()
 
     if args.command == "scan":
-        findings = scan_path(args.path)
+        findings, warnings = scan_project(args.path)
+
+        for warning in warnings:
+            print(f"WARNING: {warning}")
 
         if not findings:
+            if warnings:
+                print(
+                    "SecretShield: scan incomplete; "
+                    "no potential secrets found by the available scanner."
+                )
+                return 2
+
             print("SecretShield: no potential secrets found.")
             return 0
 
@@ -64,6 +74,8 @@ def main():
                     print(f"  {number}. {step}")
 
         return 1
+
+    return 0
 
 
 if __name__ == "__main__":

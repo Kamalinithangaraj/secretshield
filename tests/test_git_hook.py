@@ -1,7 +1,9 @@
 
+
 import subprocess
 
 from secretshield.git_hook import scan_staged_files, main
+from secretshield.scanner import _finding
 
 
 def git(repo, *args):
@@ -62,9 +64,8 @@ def test_ignores_secret_only_in_unstaged_changes(tmp_path, monkeypatch):
         repo, "app.py", 'message = "Safe staged content"'
     )
 
-    # Add a secret to the working copy without staging it.
     file_path.write_text(
-       "pass" + 'word = "UnstagedFakePassword12345"',
+        "pass" + 'word = "UnstagedFakePassword12345"',
         encoding="utf-8",
     )
 
@@ -82,7 +83,6 @@ def test_detects_secret_in_staged_content_even_if_working_copy_is_safe(
         "pass" + 'word = "StagedFakePassword12345"',
     )
 
-    # Remove the secret from the working copy, but do not stage the change.
     file_path.write_text(
         'message = "Safe working copy"',
         encoding="utf-8",
@@ -130,6 +130,7 @@ def test_blocks_safely_when_git_scan_fails(tmp_path, monkeypatch, capsys):
     assert "Git scan failed" in output
     assert "blocked" in output.lower()
 
+
 def test_blocks_binary_env_file(tmp_path, monkeypatch):
     repo = setup_repo(tmp_path, monkeypatch)
 
@@ -176,3 +177,187 @@ def test_fails_closed_when_staged_file_cannot_be_read(
         raise AssertionError(
             "Expected scan to fail when Git cannot read staged content"
         )
+
+
+# New Gitleaks integration tests
+
+
+def test_includes_unique_gitleaks_finding(
+    tmp_path, monkeypatch, capsys
+):
+    import secretshield.git_hook as git_hook
+
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(git_hook, "scan_staged_files", lambda: [])
+
+    fake = "UniqueFakeGitleaksSecret123456"
+    finding = _finding(
+        "app.py",
+        4,
+        "gitleaks_test_rule",
+        "high",
+        fake,
+        "Gitleaks test finding.",
+    )
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_with_gitleaks",
+        lambda: [finding],
+    )
+
+    result = main()
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "COMMIT BLOCKED" in output
+    assert "gitleaks_test_rule" in output
+    assert fake not in output
+
+
+def test_removes_duplicate_findings_from_both_scanners(
+    tmp_path, monkeypatch, capsys
+):
+    import secretshield.git_hook as git_hook
+
+    setup_repo(tmp_path, monkeypatch)
+
+    fake = "DuplicateFakeSecret123456"
+
+    custom_finding = _finding(
+        "app.py",
+        4,
+        "generic_api_key_assignment",
+        "medium",
+        fake,
+        "Custom scanner finding.",
+    )
+
+    gitleaks_finding = _finding(
+        "app.py",
+        4,
+        "gitleaks_test_rule",
+        "high",
+        fake,
+        "Gitleaks finding.",
+    )
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_files",
+        lambda: [custom_finding],
+    )
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_with_gitleaks",
+        lambda: [gitleaks_finding],
+    )
+
+    result = main()
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert output.count("app.py:4") == 1
+    assert fake not in output
+
+
+def test_blocks_commit_when_gitleaks_fails(
+    tmp_path, monkeypatch, capsys
+):
+    import secretshield.git_hook as git_hook
+
+    setup_repo(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_files",
+        lambda: [],
+    )
+
+    def fail_gitleaks():
+        raise git_hook.GitleaksError("Simulated scan failure")
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_with_gitleaks",
+        fail_gitleaks,
+    )
+
+    result = main()
+    output = capsys.readouterr().out
+
+    assert result == 2
+    assert "Gitleaks scan failed" in output
+    assert "blocked" in output.lower()
+
+
+def test_warns_and_continues_when_gitleaks_is_missing(
+    tmp_path, monkeypatch, capsys
+):
+    import secretshield.git_hook as git_hook
+
+    setup_repo(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_files",
+        lambda: [],
+    )
+
+    def missing_gitleaks():
+        raise git_hook.GitleaksNotFound("Not installed")
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_with_gitleaks",
+        missing_gitleaks,
+    )
+
+    result = main()
+    output = capsys.readouterr().out
+
+    assert result == 0
+    assert "Gitleaks is unavailable" in output
+    assert "No potential secrets found" in output
+
+
+def test_custom_scanner_still_blocks_when_gitleaks_is_missing(
+    tmp_path, monkeypatch, capsys
+):
+    import secretshield.git_hook as git_hook
+
+    setup_repo(tmp_path, monkeypatch)
+
+    fake = "CustomScannerFakePassword123"
+
+    custom_finding = _finding(
+        "app.py",
+        2,
+        "generic_password_assignment",
+        "high",
+        fake,
+        "Custom scanner finding.",
+    )
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_files",
+        lambda: [custom_finding],
+    )
+
+    def missing_gitleaks():
+        raise git_hook.GitleaksNotFound("Not installed")
+
+    monkeypatch.setattr(
+        git_hook,
+        "scan_staged_with_gitleaks",
+        missing_gitleaks,
+    )
+
+    result = main()
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "Gitleaks is unavailable" in output
+    assert "COMMIT BLOCKED" in output
+    assert fake not in output

@@ -7,6 +7,11 @@ import subprocess
 from pathlib import PurePosixPath
 
 from .scanner import scan_text, _finding, _is_sensitive_file
+from .gitleaks_engine import (
+    GitleaksError,
+    GitleaksNotFound,
+    scan_staged_with_gitleaks,
+)
 
 
 def get_staged_files() -> list[str]:
@@ -74,12 +79,62 @@ def scan_staged_files():
     return findings
 
 
+def _merge_findings(custom_findings, gitleaks_findings):
+    """Merge findings and remove duplicates."""
+    findings = []
+    seen = set()
+
+    for finding in custom_findings + gitleaks_findings:
+        normalized_file = (
+            PurePosixPath(finding.file.replace("\\", "/"))
+            .as_posix()
+            .casefold()
+        )
+
+        identity = (
+            normalized_file,
+            finding.line,
+            finding.masked_value,
+        )
+
+        if identity not in seen:
+            findings.append(finding)
+            seen.add(identity)
+
+    return findings
+
+
 def main() -> int:
+    # Run SecretShield's primary staged scanner.
     try:
-        findings = scan_staged_files()
+        custom_findings = scan_staged_files()
     except (subprocess.CalledProcessError, OSError):
         print("SecretShield: Git scan failed. Commit blocked for safety.")
         return 2
+
+    # Run Gitleaks as an additional staged scanner.
+    try:
+        gitleaks_findings = scan_staged_with_gitleaks()
+
+    except GitleaksNotFound:
+        print(
+            "WARNING: Gitleaks is unavailable. "
+            "Continuing with the SecretShield custom scanner only."
+        )
+        gitleaks_findings = []
+
+    except GitleaksError:
+        print(
+            "SecretShield: Gitleaks scan failed. "
+            "Commit blocked for safety."
+        )
+        return 2
+
+    # Merge results and remove duplicate findings.
+    findings = _merge_findings(
+        custom_findings,
+        gitleaks_findings,
+    )
 
     if findings:
         print("\nSecretShield: COMMIT BLOCKED!")
