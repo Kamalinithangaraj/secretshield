@@ -270,3 +270,67 @@ def test_unreadable_file_produces_scan_error(tmp_path, monkeypatch):
     assert findings[0].risk == "medium"
     assert "incomplete" in findings[0].message.lower()
 
+def test_detects_secret_in_nested_directory(tmp_path):
+    nested = tmp_path / "src" / "config" / "production"
+    nested.mkdir(parents=True)
+
+    fake = "ghp_" + "A" * 30
+    target = nested / "settings.py"
+    target.write_text(
+        f'TOKEN = "{fake}"',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    token_findings = [
+        finding for finding in findings
+        if finding.secret_type == "github_token"
+    ]
+
+    assert len(token_findings) == 1
+    assert Path(token_findings[0].file).as_posix() == "src/config/production/settings.py"
+    assert fake not in str(token_findings)
+
+def test_detects_secret_in_hidden_file(tmp_path):
+    fake = "ghp_" + "A" * 30
+    target = tmp_path / ".config"
+    target.write_text(
+        f'TOKEN = "{fake}"',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    assert any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
+
+def test_skips_symbolic_links_to_files_outside_project(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+
+    outside = tmp_path / "outside.txt"
+    fake = "ghp_" + "A" * 30
+    outside.write_text(
+        f'TOKEN = "{fake}"',
+        encoding="utf-8",
+    )
+
+    link = project / "linked.txt"
+
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        import pytest
+        pytest.skip("Symbolic links are unavailable")
+
+    findings = scan_path(project)
+
+    assert not any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
+
+    

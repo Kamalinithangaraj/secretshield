@@ -159,7 +159,14 @@ def scan_path(path: str | Path) -> list[Finding]:
     if not target.is_file() and not target.is_dir():
         raise ValueError("Scan target must be a regular file or directory")
 
-    paths = [target] if target.is_file() else sorted(p for p in target.rglob("*") if p.is_file())
+    paths = (
+    [target]
+    if target.is_file()
+    else sorted(
+        p for p in target.rglob("*")
+        if p.is_file() and not p.is_symlink()
+    )
+)
     findings: list[Finding] = []
 
     for file_path in paths:
