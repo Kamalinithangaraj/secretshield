@@ -333,4 +333,48 @@ def test_skips_symbolic_links_to_files_outside_project(tmp_path):
         for finding in findings
     )
 
+def test_detects_secret_in_json_file(tmp_path):
+    fake = "ghp_" + "A" * 30
+    target = tmp_path / "config.json"
+    target.write_text(
+        f'{{"github_token": "{fake}"}}',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    assert any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
+
+def test_detects_secret_in_yaml_file(tmp_path):
+    fake = "ghp_" + "A" * 30
+    target = tmp_path / "config.yaml"
+    target.write_text(
+        f'github_token: "{fake}"',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    assert any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
+
+def test_detects_secret_in_toml_file(tmp_path):
+    fake = "ghp_" + "A" * 30
+    target = tmp_path / "settings.toml"
+    target.write_text(
+        f'github_token = "{fake}"',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    assert any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
     
