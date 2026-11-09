@@ -392,3 +392,16 @@ def test_detects_secret_in_conf_file(tmp_path):
         finding.secret_type == "github_token"
         for finding in findings
     )
+def test_large_file_produces_scan_error(tmp_path):
+    target = tmp_path / "large.txt"
+    target.write_text(
+        "A" * (5 * 1024 * 1024 + 1),
+        encoding="utf-8",
+    )
+
+    findings = scan_path(target)
+
+    assert len(findings) == 1
+    assert findings[0].secret_type == "scan_error"
+    assert findings[0].risk == "medium"
+    assert "5 MB scan limit" in findings[0].message

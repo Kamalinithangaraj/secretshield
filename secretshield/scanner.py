@@ -15,6 +15,7 @@ SENSITIVE_FILENAMES = {
     "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "server.key",
 }
 IGNORED_PARTS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache"}
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 PRIVATE_KEY_MARKERS = (
     "-----BEGIN " + "PRIVATE KEY" + "-----",
     "-----BEGIN " + "RSA PRIVATE KEY" + "-----",
@@ -190,7 +191,36 @@ def scan_path(path: str | Path) -> list[Finding]:
                     "Sensitive file detected. Treat every credential inside it as exposed; use a fake-value example file instead.",
                 )
             )
+        try:
+            if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
+                findings.append(
+                    Finding(
+                        file=relative_name,
+                        line=0,
+                        secret_type="scan_error",
+                        risk="medium",
+                        masked_value="[content hidden]",
+                        message="File exceeds the 5 MB scan limit. The scan may be incomplete.",
+                    )
+                )
+                continue
 
+            content = file_path.read_text(encoding="utf-8")
+
+        except UnicodeDecodeError:
+            continue
+        except (PermissionError, OSError):
+            findings.append(
+                Finding(
+                    file=relative_name,
+                    line=0,
+                    secret_type="scan_error",
+                    risk="medium",
+                    masked_value="[content hidden]",
+                    message="Could not read this file. The scan may be incomplete.",
+                )
+            )
+            continue
         try:
             content = file_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
