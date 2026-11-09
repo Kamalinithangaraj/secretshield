@@ -377,4 +377,18 @@ def test_detects_secret_in_toml_file(tmp_path):
         finding.secret_type == "github_token"
         for finding in findings
     )
-    
+
+def test_detects_secret_in_conf_file(tmp_path):
+    fake = "ghp_" + "A" * 30
+    target = tmp_path / "application.conf"
+    target.write_text(
+        f'github_token = "{fake}"',
+        encoding="utf-8",
+    )
+
+    findings = scan_path(tmp_path)
+
+    assert any(
+        finding.secret_type == "github_token"
+        for finding in findings
+    )
