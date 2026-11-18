@@ -5,10 +5,26 @@ raw matched values are never returned, persisted, or logged by this module.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
+import hashlib
+import hmac
+import os
 import re
+
+def _fingerprint(value: str) -> str | None:
+    """Create a keyed fingerprint without storing the original secret."""
+    key = os.getenv("SECRET_SHIELD_FINGERPRINT_KEY")
+
+    if not key:
+        return None
+
+    return hmac.new(
+        key.encode("utf-8"),
+        value.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 SENSITIVE_FILENAMES = {
     ".env", ".env.local", ".env.production", ".env.development",
@@ -34,8 +50,8 @@ RULES: list[tuple[str, re.Pattern[str], str]] = [
     ("slack_token", re.compile(r"\bxox[baprs]-[0-9]{10,}-[A-Za-z0-9-]{10,}\b"), "high"),
     ("stripe_secret_key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{20,}\b"), "high"),
     ("database_url", re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?)://[^\s:/]+:[^\s@]+@[^\s]+"), "high"),
-    ("generic_password_assignment", re.compile(r'''(?i)\b(password|passwd|pwd)\b\s*[:=]\s*["']?([^\s"'#]{8,})'''), "high"),
-    ("generic_api_key_assignment", re.compile(r'''(?i)\b(api[_-]?key|access[_-]?token|secret[_-]?key)\b\s*[:=]\s*["']?([A-Za-z0-9_\-/.+=]{12,})'''), "medium"),
+    ("generic_password_assignment", re.compile(r'''(?i)\b(password|passwd|pwd)\b\s*[:=]\s*["']?([^\s"'#]{8,})["']?(?=\s*(?:#.*)?(?:[,;]|$))'''), "high"),
+    ("generic_api_key_assignment", re.compile(r'''(?i)\b(api[_-]?key|access[_-]?token|secret[_-]?key)\b\s*[:=]\s*["']?([A-Za-z0-9_\-/.+=]{12,})["']?(?=\s*(?:#.*)?(?:[,;]|$))'''), "medium"),
     ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "medium"),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"), "high"),
 ]
@@ -48,9 +64,17 @@ class Finding:
     risk: str
     masked_value: str
     message: str
+    fingerprint: str | None = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        return {
+            "file": self.file,
+            "line": self.line,
+            "secret_type": self.secret_type,
+            "risk": self.risk,
+            "masked_value": self.masked_value,
+            "message": self.message,
+        }
 
 
 def _mask(value: str) -> str:
@@ -62,9 +86,21 @@ def _mask(value: str) -> str:
 
 
 def _finding(file_name: str, line: int, kind: str, risk: str, value: str, message: str) -> Finding:
-    return Finding(file=file_name, line=line, secret_type=kind, risk=risk,
-                   masked_value=_mask(value) if value != "[content hidden]" else value,
-                   message=message)
+    fingerprint = (
+        _fingerprint(value)
+        if value != "[content hidden]"
+        else None
+    )
+
+    return Finding(
+        file=file_name,
+        line=line,
+        secret_type=kind,
+        risk=risk,
+        masked_value=_mask(value) if value != "[content hidden]" else value,
+        message=message,
+        fingerprint=fingerprint,
+    )
 
 
 def _is_obvious_placeholder(value: str, rule_name: str) -> bool:
@@ -101,6 +137,7 @@ def _is_obvious_placeholder(value: str, rule_name: str) -> bool:
         normalized in placeholders
         or normalized.startswith("your_")
         or normalized.startswith("replace_me")
+        or normalized.startswith("replace_with")
         or normalized.startswith("placeholder")
     )
 

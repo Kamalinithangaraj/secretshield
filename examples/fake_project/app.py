@@ -1,3 +1,3 @@
-# Fake demonstration value only — never use a real credential here.
-GITHUB_TOKEN = "ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-password = "fake-password-12345"
+# Fake demonstration values only — never use real credentials.
+GITHUB_TOKEN = "your_github_token_here"
+password = "your_password_here"

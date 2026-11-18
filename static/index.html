@@ -1,0 +1,664 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecretShield | Security Dashboard</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6fb;
+            color: #172033;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 20px 6%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            font-size: 23px;
+            font-weight: bold;
+        }
+
+        .brand span {
+            color: #38bdf8;
+        }
+
+        .header-status {
+            font-size: 13px;
+            color: #86efac;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 35px auto;
+            padding: 0 22px;
+        }
+
+        .welcome {
+            margin-bottom: 25px;
+        }
+
+        .welcome h1 {
+            font-size: 27px;
+            margin-bottom: 8px;
+        }
+
+        .welcome p {
+            color: #64748b;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 22px;
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            margin-bottom: 18px;
+        }
+
+        .connection-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .connection-info {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        button, select {
+            padding: 11px 16px;
+            border-radius: 7px;
+            border: 1px solid #cbd5e1;
+            font-size: 14px;
+        }
+
+        button {
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .secondary {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .secondary:hover {
+            background: #cbd5e1;
+        }
+
+        .scan-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            min-width: 260px;
+            background: white;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 22px;
+        }
+
+        .stat-card p {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card strong {
+            font-size: 29px;
+        }
+
+        .findings-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 750px;
+        }
+
+        th, td {
+            padding: 14px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+        }
+
+        th {
+            color: #64748b;
+            background: #f8fafc;
+        }
+
+        .risk {
+            font-weight: bold;
+        }
+
+        .high {
+            color: #dc2626;
+        }
+
+        .medium {
+            color: #d97706;
+        }
+
+        .low {
+            color: #16a34a;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .status.fixed {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .message {
+            margin-top: 14px;
+            font-size: 14px;
+            color: #475569;
+        }
+
+        .reminder {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 9px;
+            padding: 16px;
+            color: #9a3412;
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
+
+        .remediation-list {
+            padding-left: 22px;
+            line-height: 1.8;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        footer {
+            text-align: center;
+            color: #94a3b8;
+            padding: 25px;
+            font-size: 12px;
+        }
+
+        @media (max-width: 650px) {
+            header {
+                padding: 18px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .welcome h1 {
+                font-size: 23px;
+            }
+
+            main {
+                margin-top: 22px;
+                padding: 0 14px;
+            }
+
+            .panel {
+                padding: 18px;
+            }
+
+            select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="brand">Secret<span>Shield</span></div>
+    <div class="header-status">● Security Monitoring</div>
+</header>
+
+<main>
+
+    <section class="welcome">
+        <h1>Security Dashboard</h1>
+        <p>Monitor GitHub repositories and protect your projects from exposed secrets.</p>
+    </section>
+
+    <section class="panel">
+        <h2>GitHub Connection</h2>
+        <div class="connection-row">
+            <div class="connection-info" id="connectionStatus">
+                Checking GitHub connection...
+            </div>
+            <button id="connectButton">Connect GitHub</button>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Repository Scanner</h2>
+        <div class="scan-controls">
+            <select id="repositorySelect">
+                <option value="">Select a repository</option>
+            </select>
+            <button id="scanButton">Scan Repository</button>
+        </div>
+        <p class="message" id="scanMessage">
+            Select an authorized repository to begin scanning.
+        </p>
+    </section>
+
+    <section class="stats">
+        <div class="stat-card">
+            <p>Total Findings</p>
+            <strong id="totalFindings">0</strong>
+        </div>
+
+        <div class="stat-card">
+            <p>Open Findings</p>
+            <strong id="openFindings">0</strong>
+        </div>
+
+        <div class="stat-card">
+            <p>Fixed Findings</p>
+            <strong id="fixedFindings">0</strong>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Security Findings</h2>
+
+        <div class="findings-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Line</th>
+                        <th>Secret Type</th>
+                        <th>Risk</th>
+                        <th>Masked Value</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody id="findingsBody">
+                    <tr>
+                        <td colspan="7">No findings loaded yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Remediation Guidance</h2>
+
+        <div class="reminder" id="criticalReminder">
+            Select a finding to view its remediation guidance.
+        </div>
+
+        <h3 style="font-size:15px; margin-bottom:12px;">
+            Recommended Actions
+        </h3>
+
+        <ol class="remediation-list" id="remediationSteps">
+            <li>Scan a repository to discover potential exposed secrets.</li>
+        </ol>
+    </section>
+
+</main>
+
+<footer>
+    SecretShield — GitHub Secret Protection and Security Monitoring
+</footer>
+
+
+<script>
+    const connectionStatus = document.getElementById("connectionStatus");
+    const connectButton = document.getElementById("connectButton");
+    const repositorySelect = document.getElementById("repositorySelect");
+    const scanButton = document.getElementById("scanButton");
+    const scanMessage = document.getElementById("scanMessage");
+
+    connectButton.addEventListener("click", () => {
+        window.location.href = "/auth/github";
+    });
+
+    async function loadRepositories() {
+        try {
+            const response = await fetch("/github/repositories");
+
+            if (response.status === 401) {
+                connectionStatus.textContent =
+                    "GitHub not connected. Please connect your account.";
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error("Could not retrieve repositories.");
+            }
+
+            const data = await response.json();
+
+            connectionStatus.textContent =
+                "Connected to GitHub — " + data.count + " authorized repositories.";
+
+            connectButton.textContent = "Connected";
+            connectButton.disabled = true;
+
+            repositorySelect.replaceChildren();
+            repositorySelect.add(new Option("Select a repository", ""));
+
+            data.repositories.forEach(repo => {
+                const option = new Option(repo.full_name, repo.name);
+                option.dataset.fullName = repo.full_name;
+                repositorySelect.add(option);
+            });
+
+        } catch (error) {
+            connectionStatus.textContent = error.message;
+        }
+    }
+
+    async function loadFindings() {
+        const selectedOption = repositorySelect.selectedOptions[0];
+        const repository = selectedOption?.dataset.fullName;
+
+        if (!repository) return;
+
+        try {
+            const response = await fetch(
+                "/findings?repository=" + encodeURIComponent(repository)
+            );
+
+            if (!response.ok) {
+                throw new Error("Could not load findings.");
+            }
+
+            const data = await response.json();
+            const findings = data.findings;
+
+            document.getElementById("totalFindings").textContent =
+                findings.length;
+
+            document.getElementById("openFindings").textContent =
+                findings.filter(f => f.status === "open").length;
+
+            document.getElementById("fixedFindings").textContent =
+                findings.filter(f => f.status === "fixed").length;
+
+            const tbody = document.getElementById("findingsBody");
+            tbody.replaceChildren();
+
+            if (findings.length === 0) {
+                const row = tbody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 7;
+                cell.textContent = "No findings detected.";
+                return;
+            }
+
+            findings.forEach(finding => {
+                const row = tbody.insertRow();
+
+                [
+                    finding.file,
+                    finding.line,
+                    finding.secret_type,
+                    finding.risk,
+                    finding.masked_value
+                ].forEach(value => {
+                    const cell = row.insertCell();
+                    cell.textContent = value;
+                });
+
+                const statusCell = row.insertCell();
+                const status = document.createElement("span");
+
+                status.className = "status" +
+                    (finding.status === "fixed" ? " fixed" : "");
+
+                status.textContent = finding.status;
+                statusCell.appendChild(status);
+
+                if (
+                    finding.verification_status &&
+                    finding.verification_status !== "not_requested"
+                ) {
+                    const verificationInfo = document.createElement("div");
+                    verificationInfo.style.fontSize = "12px";
+                    verificationInfo.style.marginTop = "6px";
+                    verificationInfo.style.color = "#64748b";
+
+                    verificationInfo.textContent =
+                        "Last verification: " +
+                        finding.verification_status +
+                        (finding.verification_message
+                            ? " — " + finding.verification_message
+                            : "");
+
+                    statusCell.appendChild(verificationInfo);
+                }
+
+                const actionCell = row.insertCell();
+
+                const action = document.createElement("button");
+                action.textContent =
+                    finding.status === "open"
+                        ? "Request Verification"
+                        : "Reopen";
+
+                action.addEventListener("click", async () => {
+                    try {
+                        let update;
+
+                        if (finding.status === "open") {
+                            update = await fetch(
+                                `/findings/${finding.id}/verify`,
+                                { method: "POST" }
+                            );
+                        } else {
+                            update = await fetch(
+                                `/findings/${finding.id}/status`,
+                                {
+                                    method: "PATCH",
+                                    headers: {
+                                        "Content-Type": "application/json"
+                                    },
+                                    body: JSON.stringify({ status: "open" })
+                                }
+                            );
+                        }
+
+                        const result = await update.json().catch(() => ({}));
+
+                        if (!update.ok) {
+                            alert(
+                                result.detail ||
+                                "Could not update or verify this finding."
+                            );
+                            return;
+                        }
+
+                        if (finding.status === "open") {
+                            alert(
+                                result.message ||
+                                "Verification result: " +
+                                (result.verification_status || "unknown")
+                            );
+                        }
+
+                        await loadFindings();
+
+                    } catch (error) {
+                        alert("Request failed: " + error.message);
+                    }
+                });
+
+
+                const remediationButton = document.createElement("button");
+                remediationButton.textContent = "View Guidance";
+                remediationButton.type = "button";
+                remediationButton.style.marginLeft = "8px";
+                remediationButton.style.background = "#475569";
+
+                remediationButton.addEventListener("click", () => {
+                    loadRemediation(finding.secret_type);
+                });
+
+                actionCell.appendChild(action);
+                actionCell.appendChild(remediationButton);
+            });
+
+        } catch (error) {
+            console.error(error);
+            scanMessage.textContent = error.message;
+        }
+    }
+
+    async function loadRemediation(secretType) {
+        const reminder = document.getElementById("criticalReminder");
+        const steps = document.getElementById("remediationSteps");
+
+        try {
+            const response = await fetch(
+                "/remediation/" + encodeURIComponent(secretType)
+            );
+
+            if (!response.ok) {
+                throw new Error("Could not load remediation guidance.");
+            }
+
+            const data = await response.json();
+
+            reminder.textContent = data.critical_reminder;
+            steps.replaceChildren();
+
+            const sections = [
+                {
+                    title: "Common Steps",
+                    items: data.common_steps
+                },
+                {
+                    title: "Secret-Specific Steps",
+                    items: data.type_specific_steps
+                }
+            ];
+
+            sections.forEach(section => {
+                const heading = document.createElement("li");
+                heading.textContent = section.title;
+                heading.style.fontWeight = "bold";
+                steps.appendChild(heading);
+
+                section.items.forEach(item => {
+                    const li = document.createElement("li");
+                    li.textContent = item;
+                    steps.appendChild(li);
+                });
+            });
+
+        } catch (error) {
+            reminder.textContent = error.message;
+        }
+    }
+
+    scanButton.addEventListener("click", async () => {
+        const selectedRepo = repositorySelect.value;
+
+        if (!selectedRepo) {
+            scanMessage.textContent = "Please select a repository first.";
+            return;
+        }
+
+        scanButton.disabled = true;
+        scanButton.textContent = "Scanning...";
+        scanMessage.textContent = "Scanning repository. Please wait...";
+
+        try {
+            const response = await fetch(
+                "/github/scan/" + encodeURIComponent(selectedRepo),
+                { method: "POST" }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Repository scan failed.");
+            }
+
+            scanMessage.textContent =
+                data.message + " Findings detected: " + data.findings_count;
+
+            await loadFindings();
+
+        } catch (error) {
+            scanMessage.textContent = "Error: " + error.message;
+        } finally {
+            scanButton.disabled = false;
+            scanButton.textContent = "Scan Repository";
+        }
+    });
+
+    repositorySelect.addEventListener("change", loadFindings);
+
+    loadRepositories();
+</script>
+</body>
+</html>

@@ -1,8 +1,10 @@
 
+
 import argparse
 
 from .combined_scanner import scan_project
 from .remediation import remediation_for
+from .install_hook import install_hook, uninstall_hook
 
 
 def main():
@@ -24,7 +26,23 @@ def main():
         help="Show type-specific remediation instructions"
     )
 
+    sub.add_parser(
+        "install-hook",
+        help="Install SecretShield Git pre-commit protection"
+    )
+
+    sub.add_parser(
+        "uninstall-hook",
+        help="Remove the SecretShield Git pre-commit hook"
+    )
+
     args = parser.parse_args()
+
+    if args.command == "install-hook":
+        return install_hook()
+
+    if args.command == "uninstall-hook":
+        return uninstall_hook()
 
     if args.command == "scan":
         findings, warnings = scan_project(args.path)

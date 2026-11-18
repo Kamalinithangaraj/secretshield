@@ -9,3 +9,14 @@ __pycache__/
 htmlcov/
 *.egg-info/
 *.bak
+
+# SecretShield database
+secretshield.db
+secretshield.db-*
+
+# SecretShield credentials
+secrets/
+*.pem
+
+# Local backup copies — exclude from submission
+backup_before_verification/
