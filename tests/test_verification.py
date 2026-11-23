@@ -179,3 +179,25 @@ def test_manual_fixed_status_is_rejected(test_db):
 
     assert error.value.status_code == 422
     assert storage.get_findings(101)[0]["status"] == "open"
+
+def test_other_github_user_cannot_verify_finding(
+    test_db, monkeypatch
+):
+    finding_id = create_original_finding()
+
+    def unexpected_scan(username, repository):
+        pytest.fail("Another user must not be allowed to scan this finding")
+
+    monkeypatch.setattr(
+        api, "scan_github_repository", unexpected_scan
+    )
+
+    with pytest.raises(HTTPException) as error:
+        api.verify_finding(
+            finding_id,
+            make_request(username="other-user", user_id=202),
+        )
+
+    assert error.value.status_code == 404
+    assert storage.get_findings(101)[0]["status"] == "open"
+    assert storage.get_findings(202) == []

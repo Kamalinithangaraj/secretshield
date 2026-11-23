@@ -1,19 +1,46 @@
 
 
-"""Persistent storage for SecretShield scan findings."""
 
+"""Persistent storage for SecretShield scan findings.
+
+Uses SQLite locally and PostgreSQL when DATABASE_URL is configured.
+"""
+
+import os
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
 
+import psycopg
+from psycopg.rows import dict_row
+
+
 DATABASE_PATH = Path(__file__).resolve().parent.parent / "secretshield.db"
+
+
+def _using_postgres() -> bool:
+    """Check whether a PostgreSQL database has been configured."""
+    return bool(os.getenv("DATABASE_URL"))
+
+
+def _execute(connection, query: str, params=()):
+    """Execute SQL using the placeholder format of the active database."""
+    if _using_postgres():
+        query = query.replace("?", "%s")
+    return connection.execute(query, params)
 
 
 @contextmanager
 def get_connection():
     """Create and safely close a database connection."""
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
+    if _using_postgres():
+        connection = psycopg.connect(
+            os.environ["DATABASE_URL"],
+            row_factory=dict_row,
+        )
+    else:
+        connection = sqlite3.connect(DATABASE_PATH)
+        connection.row_factory = sqlite3.Row
 
     try:
         with connection:
@@ -25,60 +52,93 @@ def get_connection():
 def initialize_database():
     """Create or safely migrate the findings table."""
     with get_connection() as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS findings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                repository TEXT NOT NULL,
-                file TEXT NOT NULL,
-                line INTEGER NOT NULL,
-                secret_type TEXT NOT NULL,
-                risk TEXT NOT NULL,
-                masked_value TEXT NOT NULL,
-                message TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'open',
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                github_user_id INTEGER,
-                fingerprint TEXT
+        if _using_postgres():
+            _execute(
+                connection,
+                """
+                CREATE TABLE IF NOT EXISTS findings (
+                    id BIGSERIAL PRIMARY KEY,
+                    repository TEXT NOT NULL,
+                    file TEXT NOT NULL,
+                    line INTEGER NOT NULL,
+                    secret_type TEXT NOT NULL,
+                    risk TEXT NOT NULL,
+                    masked_value TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text),
+                    github_user_id BIGINT,
+                    fingerprint TEXT,
+                    verification_status TEXT NOT NULL DEFAULT 'not_requested',
+                    verified_at TEXT,
+                    verification_message TEXT
+                )
+                """,
             )
-            """
-        )
 
-        columns = {
-            row["name"]
-            for row in connection.execute(
-                "PRAGMA table_info(findings)"
-            ).fetchall()
+            columns = {
+                row["name"]
+                for row in _execute(
+                    connection,
+                    """
+                    SELECT column_name AS name
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = 'findings'
+                    """,
+                ).fetchall()
+            }
+        else:
+            _execute(
+                connection,
+                """
+                CREATE TABLE IF NOT EXISTS findings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    repository TEXT NOT NULL,
+                    file TEXT NOT NULL,
+                    line INTEGER NOT NULL,
+                    secret_type TEXT NOT NULL,
+                    risk TEXT NOT NULL,
+                    masked_value TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    github_user_id INTEGER,
+                    fingerprint TEXT
+                )
+                """,
+            )
+
+            columns = {
+                row["name"]
+                for row in _execute(
+                    connection,
+                    "PRAGMA table_info(findings)",
+                ).fetchall()
+            }
+
+        migrations = {
+            "fingerprint": "ALTER TABLE findings ADD COLUMN fingerprint TEXT",
+            "verification_status": (
+                "ALTER TABLE findings ADD COLUMN "
+                "verification_status TEXT NOT NULL DEFAULT 'not_requested'"
+            ),
+            "verified_at": (
+                "ALTER TABLE findings ADD COLUMN verified_at TEXT"
+            ),
+            "verification_message": (
+                "ALTER TABLE findings ADD COLUMN verification_message TEXT"
+            ),
         }
 
+        for column, statement in migrations.items():
+            if column not in columns:
+                _execute(connection, statement)
 
-        if "fingerprint" not in columns:
-            connection.execute(
-               "ALTER TABLE findings ADD COLUMN fingerprint TEXT"
-        )
-        if "verification_status" not in columns:
-            connection.execute(
-                """
-                ALTER TABLE findings
-                ADD COLUMN verification_status TEXT
-                NOT NULL DEFAULT 'not_requested'
-                """
-            )
-
-        if "verified_at" not in columns:
-            connection.execute(
-                "ALTER TABLE findings ADD COLUMN verified_at TEXT"
-            )
-
-        if "verification_message" not in columns:
-            connection.execute(
-                "ALTER TABLE findings ADD COLUMN verification_message TEXT"
-            )
-
-        connection.execute(
+        _execute(
+            connection,
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS
-            idx_findings_identity
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_identity
             ON findings (
                 github_user_id,
                 repository,
@@ -87,9 +147,8 @@ def initialize_database():
                 secret_type,
                 masked_value
             )
-            """
+            """,
         )
-
 
 
 def save_findings(
@@ -100,7 +159,8 @@ def save_findings(
     """Save findings without duplicates or resetting fixed status."""
     with get_connection() as connection:
         for finding in findings:
-            connection.execute(
+            _execute(
+                connection,
                 """
                 INSERT INTO findings (
                     repository, file, line, secret_type,
@@ -145,12 +205,13 @@ def get_findings(
     """Retrieve only findings belonging to the specified account."""
     with get_connection() as connection:
         if repository:
-            rows = connection.execute(
+            rows = _execute(
+                connection,
                 """
                 SELECT id, repository, file, line, secret_type,
-                risk, masked_value, message, status,
-                created_at, github_user_id, verification_status,
-verified_at, verification_message
+                       risk, masked_value, message, status,
+                       created_at, github_user_id, verification_status,
+                       verified_at, verification_message
                 FROM findings
                 WHERE github_user_id = ? AND repository = ?
                 ORDER BY created_at DESC
@@ -158,13 +219,14 @@ verified_at, verification_message
                 (github_user_id, repository),
             ).fetchall()
         else:
-            rows = connection.execute(
+            rows = _execute(
+                connection,
                 """
                 SELECT id, repository, file, line, secret_type,
-                risk, masked_value, message, status,
-                created_at, github_user_id, verification_status,
-verified_at, verification_message
-FROM findings
+                       risk, masked_value, message, status,
+                       created_at, github_user_id, verification_status,
+                       verified_at, verification_message
+                FROM findings
                 WHERE github_user_id = ?
                 ORDER BY created_at DESC
                 """,
@@ -184,7 +246,8 @@ def update_finding_status(
         raise ValueError("Status must be 'open' or 'fixed'.")
 
     with get_connection() as connection:
-        cursor = connection.execute(
+        cursor = _execute(
+            connection,
             """
             UPDATE findings
             SET status = ?
@@ -195,13 +258,15 @@ def update_finding_status(
 
     return cursor.rowcount > 0
 
+
 def get_finding_for_verification(
     finding_id: int,
     github_user_id: int,
 ) -> dict | None:
     """Retrieve internal verification data for an owned finding."""
     with get_connection() as connection:
-        row = connection.execute(
+        row = _execute(
+            connection,
             """
             SELECT id, repository, secret_type, fingerprint,
                    status, verification_status
@@ -234,13 +299,14 @@ def record_verification_result(
     is_verified = verification_status == "verified"
 
     with get_connection() as connection:
-        cursor = connection.execute(
+        cursor = _execute(
+            connection,
             """
             UPDATE findings
             SET status = ?,
                 verification_status = ?,
                 verified_at = CASE
-                    WHEN ? = 1 THEN CURRENT_TIMESTAMP
+                    WHEN ? = 1 THEN CAST(CURRENT_TIMESTAMP AS TEXT)
                     ELSE NULL
                 END,
                 verification_message = ?
