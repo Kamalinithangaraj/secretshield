@@ -36,6 +36,12 @@ TYPE_STEPS = {
         "Review Google Cloud API usage, billing and audit logs for suspicious activity.",
         "Avoid embedding unrestricted API keys in public client-side code.",
     ],
+    "stripe_secret_key": [
+        "Revoke the exposed secret key in the Stripe Dashboard.",
+        "Create a replacement secret key and update the application securely.",
+        "Review Stripe API activity, recent events, customers, refunds and billing for suspicious activity.",
+        "Check whether the exposed key had live-mode access and restrict permissions where supported.",
+    ],
     "jwt": [
         "Identify which application issued and validates the exposed JWT.",
         "If the signing key is compromised, rotate it and update all validating services.",
@@ -84,15 +90,23 @@ def remediation_for(secret_type: str) -> dict[str, list[str] | str]:
 
     normalized_type = secret_type.strip().lower()
 
-    type_specific = TYPE_STEPS.get(
-        normalized_type,
-        [
-            "Identify the service or file owner and determine which credential is exposed.",
-            "Rotate the credential using the provider's official instructions after revoking the exposed value.",
-            "Review relevant logs for suspicious use.",
-        ],
-    )
-
+    if normalized_type.startswith("gitleaks_"):
+        type_specific = [
+            "Identify the credential type and issuing provider from the Gitleaks rule and affected file.",
+            "Revoke or disable the exposed credential with its issuing provider before removing it from code.",
+            "Create a replacement with the minimum required permissions and store it securely.",
+            "Review the provider's audit logs, usage and billing for suspicious activity.",
+            "Remove the exposed value from the affected file and prevent it from being committed again.",
+        ]
+    else:
+        type_specific = TYPE_STEPS.get(
+            normalized_type,
+            [
+                "Identify the service or file owner and determine which credential is exposed.",
+                "Rotate the credential using the provider's official instructions after revoking the exposed value.",
+                "Review relevant logs for suspicious use.",
+            ],
+        )
     return {
         "critical_reminder": (
             "Removing a secret from code or Git history does not invalidate it. "

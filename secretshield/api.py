@@ -203,12 +203,7 @@ def github_callback(
     request.session["github_user_id"] = github_user_id
     request.session["github_username"] = github_username
 
-    return {
-        "connected": True,
-        "github_username": github_username,
-        "message": "GitHub account connected successfully.",
-    }
-
+    return RedirectResponse(url="/", status_code=303)
 
 @app.get("/github/repositories")
 def list_github_repositories(request: Request):

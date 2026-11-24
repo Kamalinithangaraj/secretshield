@@ -11,8 +11,13 @@ import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
 
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
+
 
 
 DATABASE_PATH = Path(__file__).resolve().parent.parent / "secretshield.db"
@@ -34,6 +39,11 @@ def _execute(connection, query: str, params=()):
 def get_connection():
     """Create and safely close a database connection."""
     if _using_postgres():
+        if psycopg is None:
+            raise RuntimeError(
+                "PostgreSQL is configured but psycopg is unavailable."
+            )
+
         connection = psycopg.connect(
             os.environ["DATABASE_URL"],
             row_factory=dict_row,
